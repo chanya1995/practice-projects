@@ -1,0 +1,104 @@
+---
+title: "COVID19 in THAILAND"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## What is this? 
+
+I have completed a data scientist with R course, and want to practice applying recently-gained knowledge on COVID19 situation in Thailand. 
+
+```{r}
+library("dplyr")
+library("ggplot2")
+```
+## Importing the data with the below code chunk
+```{r}
+library(readr)
+covid <- read_csv("https://raw.githubusercontent.com/RamiKrispin/coronavirus/master/csv/coronavirus.csv")
+covid
+```
+
+## Exploring the data
+The structure and summary of covid dataset are shown below. 
+```{r}
+str(covid)
+summary(covid)
+```
+
+## Thailand dataset
+First, check if there is any observation from Thailand. 
+```{r}
+any(covid$country=="Thailand")
+```
+
+Next, we can filter for only confirmed cases in Thailand, and explore them. 
+```{r}
+covid_th <- covid %>%
+  filter(country == "Thailand",type=="confirmed")
+summary(covid_th)
+```
+
+From the above summary, I notice that there is one or more cases with negative value, which is impossible. Thus, I will filter those observations out and make a cases vs date plot. 
+```{r}
+covid_th <- covid_th %>%
+  filter(cases >= 0) %>%
+  select(date,country,cases)
+summary(covid_th)
+ggplot(covid_th,aes(x=date,y=cases)) +
+  geom_line() +
+  ylab("Confirmed cases in Thailand")
+```
+
+Now, let's add a new column for 'cumulative cases', plot a line plot for cum_cases vs date and fit a linear regression model with the below code chunk.
+```{r}
+covid_th_cum <- covid_th %>%
+  mutate(cum_cases = cumsum(cases))
+summary(covid_th_cum)
+ggplot(covid_th_cum, aes(x=date,y=cum_cases)) +
+  geom_line() +
+  geom_smooth(method="lm",se=FALSE)
+```
+
+Since the end of 2020, cases in Thailand skyrocketed. 
+Let's focus only on data since December.
+```{r}
+covid_th_dec <- covid_th_cum %>%
+  filter(date >= "2020-12-01")
+ggplot(covid_th_dec, aes(x=date,y=cum_cases)) +
+  geom_line() +
+  geom_smooth(method="lm",se=FALSE) 
+```
+
+Let's examine more on the peak period.
+```{r}
+peak <- covid_th_dec %>%
+  filter(cases == max(cases))
+peak
+```
+
+On January 29, Thailand has reached its peak of 1732 due to Samutsakhon cluster. 
+```{r}
+ggplot(covid_th_dec, aes(x=date,y=cum_cases)) +
+  geom_line() +
+  geom_smooth(method="lm",se=FALSE) +
+  geom_vline(aes(xintercept=date),data=peak,linetype="dashed") +
+  geom_text(aes(x=date,label="Samutsakhon cluster"),data=peak, y=30000)
+```
+
+Let's build a linear model from 'covid_th_dec' data set to see the trend. 
+```{r}
+covid_model <- lm(cum_cases~date, data=covid_th_dec)
+summary(covid_model)
+```
+
+The model seems to explain the situation since December 2020 well, but I hope that this upward trend will not continue. 
+
+## Data source 
+https://github.com/RamiKrispin/coronavirus
+
+THANK YOU :) 
+
+
