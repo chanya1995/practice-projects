@@ -1,0 +1,153 @@
+---
+title: "Holidays_070721"
+author: "Chanya"
+date: "7/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+chooseCRANmirror(graphics=FALSE, ind=1)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Installing packages and reading a dataset into R
+data source : [tidytuesday repository](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-07-06/readme.md)
+```{r install R packages, message=FALSE, warning=FALSE, include=FALSE}
+packages <- c("tidyverse","forcats","gapminder","ggthemes","wesanderson")
+lapply(packages, install.packages)
+```
+```{r install Rcpp?, message=FALSE, warning=FALSE, include=FALSE}
+install.packages("Rcpp")
+```
+### Loading Packages into R 
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(forcats)
+library(gapminder)
+library(ggthemes)
+library(wesanderson)
+```
+
+### Loading dataset from Github
+```{r load dataset, warning=FALSE, include=FALSE}
+holidays <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-06/holidays.csv")
+```
+
+```{r view dataset}
+view(holidays)
+glimpse(holidays)
+summary(holidays)
+```
+
+## Questioning
+After viewing the data, I would like to further answer two questions
+1. Which countries do not celebrate Independence Day? 
+2. Which countries colonized the most? 
+
+## Before finding the answers, data wrangling! 
+Big thanks to : [Julianna Calabrese](https://github.com/jrcalabrese/TidyTuesday/blob/main/2021_week28/independence.Rmd)
+```{r}
+holidays_2 <- holidays %>% 
+  select(country,date_parsed,independence_from,year) %>%
+    mutate(independence_from = 
+           recode_factor(independence_from, "Russian Soviet Federative Socialist Republic" = "Soviet Union")) %>% 
+  mutate(independence_from = 
+           recode_factor(independence_from, "Russian Soviet Federative Socialist Republic and German Empire" = "Soviet Union")) %>% 
+  mutate(independence_from = 
+           recode_factor(independence_from, "Spanish Empire" = "Spain")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "United Kingdom of Great Britain" = "United Kingdom")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "Kingdom of Great Britain" = "United Kingdom")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "United Kingdom of Great Britain and Ireland" = "United Kingdom")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "United Kingdom of Portugal, Brazil and the Algarves" = "Portugal")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "United Kingdom and the British Mandate for Palestine" = "United Kingdom")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "SFR Yugoslavia" = "Yugoslavia")) %>% 
+  mutate(independence_from = 
+           recode_factor(independence_from, "Socialist Federal Republic of Yugoslavia" = "Yugoslavia")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "Empire of Japan and France" = "Empire of Japan")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "Spanish Empire[72]" = "Spain")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "Soviet Union[80]" = "Soviet Union")) %>%
+  mutate(independence_from = 
+           recode_factor(independence_from, "Soviet Union[55]" = "Soviet Union")) %>%
+  mutate(across(independence_from, fct_explicit_na, "never or not celebrated"))
+```
+
+```{r install skimr}
+install.packages("skimr")
+```
+```{r}
+library(skimr)
+skim(holidays_2)
+```
+
+
+### Question 1 : Out of 195 countries, which never celebrate Independence Day? 
+```{r}
+question_1 <- holidays_2 %>%
+  filter(independence_from == "never or not celebrated")
+question_1$country
+```
+There are 35 out of 195 countries which do not celebrate Independence Day. 
+Some of the countries have never been colonized while some were colonized but did not celebrate the Independence Day.
+
+### Question 2 : Which countries colonized the most? 
+```{r}
+ggplot(holidays_2, aes(x=fct_infreq(independence_from))) +
+  geom_bar(fill="sky blue") +
+  coord_flip() 
+colonizers <- holidays_2 %>%
+  group_by(independence_from) %>%
+  count() %>%
+  arrange(desc(n)) 
+head(colonizers)
+ggsave("colonizers.png", height=8, width=8)
+```
+
+### Mapping data
+```{r}
+mapdata <- map_data("world") %>%
+  filter(!(region=="Antarctica")) %>%
+  filter(!(region=="Greenland")) %>%
+  filter(!(region=="French Southern and Antarctic Lands")) %>% 
+  mutate(region = recode(region,
+                         USA="United States",
+                         UK="United Kingdom"))
+holidays_2 %>% 
+  mutate(independence_from = fct_lump(independence_from, n=7)) %>%
+  ggplot() + 
+  geom_map(dat = mapdata, map = mapdata, aes(map_id=region), fill="#E86F00", color=NA) +
+  geom_map(aes(map_id=country, fill=independence_from), map=mapdata) + 
+  expand_limits(x = mapdata$long, y = mapdata$lat) +
+  coord_map(projection = "gilbert", xlim = c(-180, 180)) +  #mollweide
+  ggthemes::theme_map() +
+  theme(
+        text=element_text(family="Gill Sans"),   
+        plot.title = element_text(size=20, hjust = 0.5),
+        plot.background = element_rect(fill = "white", color=NA),
+        legend.position = "top",
+        legend.justification = "center",
+        legend.background=element_blank(),
+        legend.key = element_rect(colour = NA, fill = NA), 
+        legend.box.background = element_blank(),
+        legend.text=element_text(size=rel(2))) +
+  scale_fill_manual(values = wes_palette("FantasticFox1", 8, type = "continuous"),
+                      na.value="#E86F00", na.translate=F) +
+  guides(fill=guide_legend(title="", ncol=3)) +
+  ggtitle("Colonization in World Map") +
+  labs(caption = "Thank you @jrosecalabrese for the code") +
+  theme(plot.caption= element_text(size=16, hjust=1))
+ggsave("independence_map.png", height=8, width=8)
+```
+## Final Words
+
+This is my first time mapping in R (and also my first time analyzing #TidyTuesday data. I would not have finished it without the comprehensive and reproducible code from [Julianna Calabrese](https://github.com/jrcalabrese/TidyTuesday/blob/main/2021_week28/independence.Rmd). I have learned a lot, and I am inspired to explore further into the related packages. 
+
+
